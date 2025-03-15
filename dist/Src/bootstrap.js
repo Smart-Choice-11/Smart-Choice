@@ -13,7 +13,7 @@ const Modules_1 = require("./Modules");
 const bootstrap = (app, express) => {
     //-----------------------------------------------parse------------------------------------------------------------
     app.use(express.json());
-    dotenv_1.default.config({ path: path_1.default.resolve("./config/.env") });
+    dotenv_1.default.config({ path: path_1.default.resolve("./.env") });
     app.use((0, cors_1.default)({
         origin: '*',
     }));

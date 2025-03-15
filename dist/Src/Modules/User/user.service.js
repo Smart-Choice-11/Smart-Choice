@@ -9,16 +9,20 @@ const encryption_1 = require("../../Utils/encryption");
 const token_1 = require("../../Utils/Token/token");
 const otp_1 = require("../../Utils/otp");
 const verifyGoogle_1 = require("../../Utils/verifyGoogle/verifyGoogle");
+const enum_1 = require("../../Utils/constant/enum");
 //---------------------------------------------------Sign Up --------------------------------------------------------------
 const signUp = async (req, res, next) => {
     //get data from req
-    let { firstName, lastName, email, password, role } = req.body;
+    let { firstName, phone, lastName, email, password, role } = req.body;
     //check userExist
     let userExist = await Database_1.User.findOne({ email });
     //send email
     if (userExist) {
         if (userExist.isConfirmed) {
             return next(new AppError_1.AppError(messages_1.messages.user.alreadyExist, 400)); // Prevent duplicate accounts
+        }
+        if (userExist.provider == enum_1.providers.GOOGLE) {
+            return next(new AppError_1.AppError('User Already Login With Google', 400));
         }
         if (userExist?.otpEmail && userExist?.expiredDateOtp?.getTime() > Date.now()) {
             return next(new AppError_1.AppError(messages_1.messages.user.AlreadyHasOtp, 400));
@@ -32,6 +36,8 @@ const signUp = async (req, res, next) => {
             });
         }
     }
+    //crypt phone
+    let cipherText = (0, encryption_1.Encrypt)({ key: phone, secretKey: process.env.SECRET_CRYPTO });
     //hash password
     password = await (0, encryption_1.Hash)({
         key: password,
@@ -42,6 +48,7 @@ const signUp = async (req, res, next) => {
         firstName,
         lastName,
         email,
+        phone: cipherText || undefined,
         password,
         role,
     });
@@ -102,7 +109,7 @@ const login = async (req, res, next) => {
     //compare password
     let match = (0, encryption_1.comparePassword)({
         password,
-        hashPassword: userExist.password.toString(),
+        hashPassword: userExist.password?.toString() || "",
     });
     if (!match) {
         return next(new AppError_1.AppError(messages_1.messages.user.Incorrect, 400));
@@ -132,13 +139,17 @@ const loginWithGoogle = async (req, res, next) => {
     //get data from req 
     let { idToken } = req.body;
     //check token from google 
-    let { email, name } = await (0, verifyGoogle_1.verifyGoogleToken)(idToken);
+    let { email, given_name, family_name } = await (0, verifyGoogle_1.verifyGoogleToken)(idToken);
     //check user exist
     let userExist = await Database_1.User.findOne({ email });
     if (!userExist) {
         userExist = await Database_1.User.create({
             email,
-            firstName: name
+            firstName: given_name,
+            lastName: family_name,
+            provider: enum_1.providers.GOOGLE,
+            isConfirmed: true,
+            phone: undefined,
         });
     }
     //generate token

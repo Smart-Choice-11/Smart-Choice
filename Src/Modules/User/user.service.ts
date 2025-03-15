@@ -3,11 +3,12 @@ import { User } from "../../../Database";
 import { AppError } from "../../Utils/AppError/AppError";
 import { messages } from "../../Utils/constant/messages";
 import {  generateAndSecondSendOTP, generateAndSendOTP, secondOTPForgetPassword, sendOTPForgetPassword } from "../../Utils/Email/emailEvent";
-import { comparePassword, Hash } from "../../Utils/encryption";
+import { comparePassword, Encrypt, Hash } from "../../Utils/encryption";
 import { generateToken, verifyToken } from "../../Utils/Token/token";
 import { AppNext, AppRequest, AppResponse } from "../../Utils/type";
 import { generateOTP } from "../../Utils/otp";
 import { verifyGoogleToken } from "../../Utils/verifyGoogle/verifyGoogle";
+import { providers } from "../../Utils/constant/enum";
 
 
 //---------------------------------------------------Sign Up --------------------------------------------------------------
@@ -17,7 +18,7 @@ export const signUp = async (
   next: AppNext
 ) => {
   //get data from req
-  let { firstName, lastName, email, password, role} = req.body;
+  let { firstName,phone ,lastName, email, password, role} = req.body;
   //check userExist
   let userExist = await User.findOne({ email });
   
@@ -28,7 +29,9 @@ export const signUp = async (
     if (userExist.isConfirmed) {
       return next(new AppError(messages.user.alreadyExist, 400)); // Prevent duplicate accounts
     }
-
+    if(userExist.provider == providers.GOOGLE){
+      return next (new AppError('User Already Login With Google',400))
+    }
     if (userExist?.otpEmail && userExist?.expiredDateOtp?.getTime() > Date.now()) {
       return next(new AppError(messages.user.AlreadyHasOtp, 400));
     }
@@ -42,8 +45,9 @@ export const signUp = async (
       });
     }
   }
+  //crypt phone
   
-  
+let cipherText=Encrypt({key :phone,secretKey:process.env.SECRET_CRYPTO }) 
   //hash password
   password = await Hash({
     key: password,
@@ -55,7 +59,7 @@ export const signUp = async (
     firstName,
     lastName,
     email,
-    
+    phone:cipherText || undefined,
     password,
     role,
     
@@ -129,8 +133,8 @@ export const login = async (
   //compare password
   let match = comparePassword({
     password,
-    hashPassword: userExist.password.toString(),
-  });
+    hashPassword: userExist.password?.toString() || "",
+  })
   if (!match) {
     return next(new AppError(messages.user.Incorrect, 400));
   }
@@ -158,13 +162,17 @@ export const loginWithGoogle = async(req:AppRequest,res:AppResponse,next:AppNext
 //get data from req 
 let {idToken}=req.body
 //check token from google 
-let {email, name}= await verifyGoogleToken(idToken)
+let {email, given_name ,family_name}= await verifyGoogleToken(idToken)
 //check user exist
 let userExist =await User.findOne({email})
 if(!userExist){
   userExist=await User.create({
     email,
-    firstName:name
+    firstName:given_name,
+    lastName:family_name,
+    provider:providers.GOOGLE,
+    isConfirmed:true,
+    phone: undefined,
   })
 }
   //generate token
