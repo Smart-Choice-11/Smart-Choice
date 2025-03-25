@@ -48,11 +48,7 @@ export const signUp = async (
   //crypt phone
   
 let cipherText=Encrypt({key :phone,secretKey:process.env.SECRET_CRYPTO }) 
-  //hash password
-  password = await Hash({
-    key: password,
-    SALT_ROUNDS: process.env.SALT_ROUNDS,
-  });
+
   
   //create user
   const user = new User({
@@ -140,11 +136,11 @@ export const login = async (
   }
   //generate token
   const accessToken = generateToken({
-    payload: { email, id: userExist.id },
+    payload: { email, _id: userExist._id },
     options: { expiresIn: '1d' },
   });
   const refreshToken = generateToken({
-    payload: { email, id: userExist.id },
+    payload: { email, _id: userExist._id },
     options: { expiresIn: "7d" },
   });
   //return response
@@ -153,8 +149,8 @@ export const login = async (
     .json({
       message: messages.user.loginSuccessfully,
       success: true,
-      accessToken,
-      refreshToken,
+      access_token:accessToken,
+      refresh_token:refreshToken  ,
     });
 };
 //---------------------------------------------------Login With Google --------------------------------------------------------------
@@ -177,11 +173,11 @@ if(!userExist){
 }
   //generate token
   const accessToken = generateToken({
-    payload: { email, id: userExist.id },
+    payload: { email, _id: userExist._id },
     options: { expiresIn: "1d" },
   });
   const refreshToken = generateToken({
-    payload: { email, id: userExist.id },
+    payload: { email, _id: userExist._id },
     options: { expiresIn: "7d" },
   });
   //return response
@@ -190,8 +186,8 @@ if(!userExist){
     .json({
       message: messages.user.loginSuccessfully,
       success: true,
-      accessToken,
-      refreshToken,
+      access_token:accessToken,
+      refresh_token:refreshToken,
     });
 };
 
@@ -231,9 +227,13 @@ export const refreshToken = async (
     return next(new AppError("Verification token is missing", 400));
   }
   //decode token
+  //decode token
   const result = verifyToken({ token: refreshToken });
-  if ("message" in result) {
-    return next(new Error(result.message));
+  if (!result) {
+    return next(new AppError("Invalid or expired token", 401));
+  }
+  if (!result || typeof result !== "object" || !("email" in result) || !("_id" in result)) {
+    return next(new AppError("Invalid or expired token", 401));
   }
   //generate token
   const accessToken = generateToken({
@@ -264,18 +264,18 @@ export const forgetPassword = async (
   let forgetOTP = String(generateOTP());
   //hash
   userExist.otpEmail = forgetOTP;
-  userExist.expiredDateOtp = new Date(Date.now() + 10 * 1000);
+  userExist.expiredDateOtp = new Date(Date.now() + 5 *60 * 1000);
+  //save to db
+  await userExist.save();
   //update
   setTimeout(async () => {
     await User.updateOne(
       { _id: userExist._id, expiredDateOtp: { $lte: Date.now() } },
       { $unset: { otpEmail: "", expiredDateOtp: "" } }
     );
-  }, 20 * 1000);
-  //save to db
-  await userExist.save();
+  }, 5 *60 * 1000);
   //send email
-  sendOTPForgetPassword(email,userExist.firstName,userExist.lastName,forgetOTP)
+  await sendOTPForgetPassword(email,userExist.firstName,userExist.lastName,forgetOTP)
   //send response
   return res
     .status(200)
@@ -305,11 +305,11 @@ export const changePassword = async (
     let hash = await Hash({key :secondForgetPassword ,SALT_ROUNDS:process.env.SALT_ROUNDS})
     //add to otp
     userExist.otpEmail = hash;
-    userExist.expiredDateOtp = new Date(Date.now() + 20 * 1000);
+    userExist.expiredDateOtp = new Date(Date.now() + 5 *60 * 1000);
     //save to db
     await userExist.save();
     //send resend email
-  secondOTPForgetPassword(email,userExist.firstName,userExist.lastName,secondForgetPassword)
+  await secondOTPForgetPassword(email,userExist.firstName,userExist.lastName,secondForgetPassword)
   }
   //if every thing good then
   let hashPassword = Hash({
