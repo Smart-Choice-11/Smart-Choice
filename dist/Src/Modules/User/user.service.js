@@ -111,11 +111,11 @@ const login = async (req, res, next) => {
     }
     //generate token
     const accessToken = (0, token_1.generateToken)({
-        payload: { email, _id: userExist._id },
+        payload: { email, id: userExist._id },
         options: { expiresIn: '1d' },
     });
     const refreshToken = (0, token_1.generateToken)({
-        payload: { email, _id: userExist._id },
+        payload: { email, id: userExist._id },
         options: { expiresIn: "7d" },
     });
     //return response
@@ -149,11 +149,11 @@ const loginWithGoogle = async (req, res, next) => {
     }
     //generate token
     const accessToken = (0, token_1.generateToken)({
-        payload: { email, _id: userExist._id },
+        payload: { email, id: userExist._id },
         options: { expiresIn: "1d" },
     });
     const refreshToken = (0, token_1.generateToken)({
-        payload: { email, _id: userExist._id },
+        payload: { email, id: userExist._id },
         options: { expiresIn: "7d" },
     });
     //return response
@@ -210,7 +210,7 @@ const refreshToken = async (req, res, next) => {
         options: { expiresIn: "7d" },
     });
     //send response
-    return res.status(200).json({ success: true, accessToken });
+    return res.status(200).json({ success: true, access_token: accessToken });
 };
 exports.refreshToken = refreshToken;
 //---------------------------------------------------Forget Password--------------------------------------------------------------
